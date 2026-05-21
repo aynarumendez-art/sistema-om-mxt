@@ -210,46 +210,118 @@ async function logChange(mod,campo,ant,nvo){
   try{await db.post("log_bitacora_cambios",state.session.access_token,{id_usuario:state.session.user.id,nombre_usuario:state.profile.nombre,rol_usuario:state.profile.rol,modulo_afectado:mod,campo_modificado:campo,valor_anterior:String(ant||""),valor_nuevo:String(nvo||"")});}catch{}
 }
 function renderLogin(){
-  let email="",pass="",isReg=false;
-  function draw(){
-    const root=document.getElementById("root");root.innerHTML="";
-    const wrap=h("div",{class:"login-wrap"});
-    const card=h("div",{class:"login-card"});
-    const logo=h("div",{class:"login-logo"});
-    const brand=h("div",{class:"login-brand"});
-    brand.appendChild(svgI("radio",20));brand.appendChild(h("span",{style:{color:"#fff",fontWeight:700,fontSize:16}},"MXT Holdings"));
-    logo.appendChild(brand);
-    logo.appendChild(h("div",{style:{marginTop:10}},[h("div",{style:{color:"#071827",fontSize:20,fontWeight:700}},isReg?"Crear cuenta":"Acceder al sistema"),h("div",{style:{color:"#667085",fontSize:13,marginTop:3}},"Sistema de Aceptación de Obras O&M")]));
-    card.appendChild(logo);
-    const ef=h("div",{class:"field"},[h("label",{},"Correo electrónico")]);const ei=h("input",{type:"email",placeholder:"usuario@mxtholdings.com"});ei.value=email;ei.oninput=e=>email=e.target.value;ef.appendChild(ei);card.appendChild(ef);
-    const pf=h("div",{class:"field"},[h("label",{},"Contraseña")]);const pi=h("input",{type:"password",placeholder:"••••••••"});pi.value=pass;pi.oninput=e=>pass=e.target.value;pi.onkeydown=e=>{if(e.key==="Enter")handleAuth();};pf.appendChild(pi);card.appendChild(pf);
-    const errDiv=h("div",{class:"err",style:{display:"none"}});errDiv.id="lerr";card.appendChild(errDiv);
-    const lb=h("button",{class:"btn btn-primary",style:{width:"100%",justifyContent:"center",padding:"9px 0"},onClick:handleAuth},"Ingresar");card.appendChild(lb);
-    const tg=h("div",{style:{textAlign:"center",marginTop:14,fontSize:12,color:"#667085"}},isReg?"¿Ya tienes cuenta? ":"¿Primera vez? ");
-    const tb=h("button",{style:{background:"none",border:"none",color:"#0077C8",cursor:"pointer",fontWeight:600,fontSize:12},onClick:()=>{isReg=!isReg;draw();}},isReg?"Iniciar sesión":"Crear cuenta");
-    tg.appendChild(tb);card.appendChild(tg);wrap.appendChild(card);root.appendChild(wrap);
-  }
-  async function handleAuth(){
-    if(!email||!pass){const e=document.getElementById("lerr");if(e){e.textContent="Ingresa correo y contraseña.";e.style.display="block";}return;}
+  const root=document.getElementById("root");
+  root.innerHTML=`
+  <div class="login-wrap">
+    <div style="width:380px;max-width:calc(100vw - 32px)">
+      <div style="text-align:center;margin-bottom:28px">
+        <div class="login-brand" style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#00AEEF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M4.93 4.93l1.41 1.41a8 8 0 0 0 0 11.32l-1.41 1.41a10 10 0 0 1 0-14.14z"/><path d="M19.07 4.93l-1.41 1.41a8 8 0 0 1 0 11.32l1.41 1.41a10 10 0 0 0 0-14.14z"/></svg>
+          <span style="color:#fff;font-weight:700;font-size:16px">MXT Holdings</span>
+        </div>
+        <div style="color:#fff;font-size:20px;font-weight:700">Acceder al sistema</div>
+        <div style="color:#667085;font-size:13px;margin-top:3px">Sistema de Aceptación de Obras O&M</div>
+      </div>
+      <div class="login-card">
+        <form id="login-form" style="margin:0">
+          <div class="field">
+            <label for="f-email">Correo electrónico</label>
+            <input id="f-email" type="email" name="email" placeholder="usuario@mxtholdings.com" autocomplete="email" required/>
+          </div>
+          <div class="field">
+            <label for="f-pass">Contraseña</label>
+            <input id="f-pass" type="password" name="password" placeholder="••••••••" autocomplete="current-password" required/>
+          </div>
+          <div id="lerr" class="err" style="display:none"></div>
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:9px 0" id="login-btn">Ingresar</button>
+        </form>
+        <div style="text-align:center;margin-top:14px;font-size:12px;color:#667085">
+          ¿Primera vez? <button onclick="renderRegister()" style="background:none;border:none;color:#0077C8;cursor:pointer;font-weight:600;font-size:12px">Crear cuenta</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById("login-form").addEventListener("submit",async function(e){
+    e.preventDefault();
+    const email=document.getElementById("f-email").value.trim();
+    const pass=document.getElementById("f-pass").value;
+    const errEl=document.getElementById("lerr");
+    const btn=document.getElementById("login-btn");
+    errEl.style.display="none";
+    btn.textContent="Cargando...";btn.disabled=true;
     try{
-      let data;
-      if(isReg){const su=await signUp(email,pass);if(su.error)throw new Error(su.error.message||"Error al crear cuenta.");data=await signIn(email,pass);}
-      else{data=await signIn(email,pass);}
-      if(!data.access_token)throw new Error(data.error_description||"Credenciales incorrectas.");
+      const data=await signIn(email,pass);
+      if(!data.access_token)throw new Error(data.error_description||data.error?.message||"Credenciales incorrectas.");
       state.session=data;
       try{
         const pr=await db.get("usr_usuarios",data.access_token,`id=eq.${data.user.id}`);
         if(pr&&pr.length>0){state.profile=pr[0];}
-        else{
-          const all=await db.get("usr_usuarios",data.access_token,"select=id&limit=1");
-          const np={id:data.user.id,nombre:data.user.email.split("@")[0],correo:data.user.email,area:"O&M",rol:(!all||all.length===0)?"Administrador O&M":"Visualizador Interno",activo:true};
-          await db.post("usr_usuarios",data.access_token,np);state.profile=np;
-        }
+        else{state.profile={id:data.user.id,nombre:email.split("@")[0],correo:email,rol:"Visualizador Interno"};}
       }catch{state.profile={id:data.user.id,nombre:email.split("@")[0],correo:email,rol:"Visualizador Interno"};}
       await loadData();
-    }catch(e){const err=document.getElementById("lerr");if(err){err.textContent=e.message;err.style.display="block";}draw();}
-  }
-  draw();
+    }catch(err){
+      errEl.textContent=err.message;errEl.style.display="block";
+      btn.textContent="Ingresar";btn.disabled=false;
+    }
+  });
+}
+function renderRegister(){
+  const root=document.getElementById("root");
+  root.innerHTML=`
+  <div class="login-wrap">
+    <div style="width:380px;max-width:calc(100vw - 32px)">
+      <div style="text-align:center;margin-bottom:28px">
+        <div class="login-brand" style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;margin-bottom:12px">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#00AEEF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M4.93 4.93l1.41 1.41a8 8 0 0 0 0 11.32l-1.41 1.41a10 10 0 0 1 0-14.14z"/><path d="M19.07 4.93l-1.41 1.41a8 8 0 0 1 0 11.32l1.41 1.41a10 10 0 0 0 0-14.14z"/></svg>
+          <span style="color:#fff;font-weight:700;font-size:16px">MXT Holdings</span>
+        </div>
+        <div style="color:#fff;font-size:20px;font-weight:700">Crear cuenta</div>
+        <div style="color:#667085;font-size:13px;margin-top:3px">Sistema de Aceptación de Obras O&M</div>
+      </div>
+      <div class="login-card">
+        <form id="reg-form" style="margin:0">
+          <div class="field">
+            <label for="r-email">Correo electrónico</label>
+            <input id="r-email" type="email" name="email" placeholder="usuario@mxtholdings.com" autocomplete="email" required/>
+          </div>
+          <div class="field">
+            <label for="r-pass">Contraseña (mín. 6 caracteres)</label>
+            <input id="r-pass" type="password" name="password" placeholder="••••••••" autocomplete="new-password" minlength="6" required/>
+          </div>
+          <div id="rerr" class="err" style="display:none"></div>
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:9px 0" id="reg-btn">Crear cuenta</button>
+        </form>
+        <div style="text-align:center;margin-top:14px;font-size:12px;color:#667085">
+          ¿Ya tienes cuenta? <button onclick="renderLogin()" style="background:none;border:none;color:#0077C8;cursor:pointer;font-weight:600;font-size:12px">Iniciar sesión</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById("reg-form").addEventListener("submit",async function(e){
+    e.preventDefault();
+    const email=document.getElementById("r-email").value.trim();
+    const pass=document.getElementById("r-pass").value;
+    const errEl=document.getElementById("rerr");
+    const btn=document.getElementById("reg-btn");
+    errEl.style.display="none";btn.textContent="Creando...";btn.disabled=true;
+    try{
+      const su=await signUp(email,pass);
+      if(su.error)throw new Error(su.error.message||"Error al crear cuenta.");
+      const data=await signIn(email,pass);
+      if(!data.access_token)throw new Error(data.error_description||"Cuenta creada. Verifica tu correo o intenta iniciar sesión.");
+      state.session=data;
+      try{
+        const all=await db.get("usr_usuarios",data.access_token,"select=id&limit=1");
+        const np={id:data.user.id,nombre:email.split("@")[0],correo:email,area:"O&M",rol:(!all||all.length===0)?"Administrador O&M":"Visualizador Interno",activo:true};
+        await db.post("usr_usuarios",data.access_token,np);
+        state.profile=np;
+      }catch{state.profile={id:data.user.id,nombre:email.split("@")[0],correo:email,rol:"Visualizador Interno"};}
+      await loadData();
+    }catch(err){
+      errEl.textContent=err.message;errEl.style.display="block";
+      btn.textContent="Crear cuenta";btn.disabled=false;
+    }
+  });
 }
 function renderSidebar(){
   const nav=[{id:"dashboard",icon:"dashboard",label:"Dashboard"},{id:"tracker",icon:"layers",label:"Tracker de Obras"},{id:"pendientes",icon:"list",label:"Pendientes"},{id:"sitios",icon:"map",label:"Catálogo Sitios"},{id:"bitacora",icon:"history",label:"Bitácora"},{id:"catalogos",icon:"settings",label:"Catálogos",admin:true}];
